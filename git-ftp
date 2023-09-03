@@ -41,6 +41,7 @@ REMOTE_PATH=""
 REMOTE_CACERT=""
 REMOTE_DELETE_CMD="-*DELE "
 REMOTE_CMD_OPTIONS=("-s")
+REMOTE_ENCODING=""
 LFTP_OPTIONS=""
 ACTION=""
 LOG_CACHE=""
@@ -479,8 +480,13 @@ upload_file_buffered() {
 	local SRC_FILE="$1"
 	local DEST_FILE="${SRC_FILE#$SYNCROOT}"
 	local ENC_DEST_FILE="${DEST_FILE//#/%23}"
-	echo "-T \"./$SRC_FILE\"
-url = \"$REMOTE_BASE_URL/${REMOTE_PATH}${ENC_DEST_FILE}\"" >> "$TMP_CURL_UPLOAD_FILE"
+	if [ "$REMOTE_ENCODING" == "WINDOWS" ] ; then
+		echo "-T \"./$SRC_FILE\"" >> "$TMP_CURL_UPLOAD_FILE"
+		echo "url = \"$REMOTE_BASE_URL/${REMOTE_PATH}${ENC_DEST_FILE}\"" | iconv -f UTF-8 -t WINDOWS-1252 >> "$TMP_CURL_UPLOAD_FILE"
+	else
+		echo "-T \"./$SRC_FILE\"
+		url = \"$REMOTE_BASE_URL/${REMOTE_PATH}${ENC_DEST_FILE}\"" >> "$TMP_CURL_UPLOAD_FILE"
+	fi
 }
 
 fire_upload_buffer() {
@@ -511,7 +517,11 @@ delete_file() {
 }
 
 delete_file_buffered() {
-	echo "-Q \"${REMOTE_DELETE_CMD}${REMOTE_PATH}${1}\"" >> "$TMP_CURL_DELETE_FILE"
+	if [ "$REMOTE_ENCODING" == "WINDOWS" ] ; then
+		echo "-Q \"${REMOTE_DELETE_CMD}${REMOTE_PATH}${1}\"" | iconv -f UTF-8 -t WINDOWS-1252 >> "$TMP_CURL_DELETE_FILE"	
+	else
+		echo "-Q \"${REMOTE_DELETE_CMD}${REMOTE_PATH}${1}\"" >> "$TMP_CURL_DELETE_FILE"
+	fi
 }
 
 fire_delete_buffer() {
@@ -824,7 +834,7 @@ handle_file_sync() {
 	local TOTAL_ITEMS=$(cat "$TMP_GITFTP_UPLOAD" "$TMP_GITFTP_DELETE" | tr -d -c '\0' | wc -c)
 	TOTAL_ITEMS=$((TOTAL_ITEMS+0)) # trims whitespaces produced by wc
 	print_info "$TOTAL_ITEMS file$([ $TOTAL_ITEMS -ne 1 ] && echo 's') to sync:"
-
+	
 	while IFS= read -r -d '' FILE_NAME; do
 		(( DONE_ITEMS++ ))
 		print_info "[$DONE_ITEMS of $TOTAL_ITEMS] Buffered for upload '$FILE_NAME'."
@@ -1135,6 +1145,11 @@ set_remotes() {
 	write_log "The remote sha1 is saved in file '$DEPLOYED_SHA1_FILE'."
 }
 
+set_remote_encoding() {
+	[ -z $REMOTE_ENCODING ] && REMOTE_ENCODING="$(get_config remote-encoding)"
+	print_info "Remote Encoding is $REMOTE_ENCODING"
+}
+
 # Original implementation http://stackoverflow.com/a/10660730/3377535
 urlencode() {
 	local string="${1}"
@@ -1315,6 +1330,7 @@ action_init() {
 	check_is_dirty_repository
 	set_branch
 	set_remotes
+	set_remote_encoding
 	check_curl_access
 	check_remote_access
 	check_deployed_sha1
@@ -1335,6 +1351,7 @@ action_push() {
 	check_is_dirty_repository
 	set_branch
 	set_remotes
+	set_remote_encoding
 	check_curl_access
 	set_deployed_sha1_for_push
 	set_local_sha1
@@ -1353,6 +1370,7 @@ action_catchup() {
 	check_is_dirty_repository
 	set_branch
 	set_remotes
+	set_remote_encoding
 	check_curl_access
 	set_local_sha1
 	upload_local_sha1
@@ -1362,6 +1380,7 @@ action_catchup() {
 
 action_show() {
 	set_remotes
+	set_remote_encoding
 	check_curl_access
 	DEPLOYED_SHA1="$(get_file_content "$DEPLOYED_SHA1_FILE")"
 	check_exit_status "Could not get uploaded log file" "$ERROR_DOWNLOAD"
@@ -1370,6 +1389,7 @@ action_show() {
 
 action_log() {
 	set_remotes
+	set_remote_encoding
 	check_curl_access
 	DEPLOYED_SHA1="$(get_file_content "$DEPLOYED_SHA1_FILE")"
 	check_exit_status "Could not get uploaded log file" "$ERROR_DOWNLOAD"
@@ -1382,6 +1402,7 @@ action_download() {
 	check_is_dirty_repository
 	check_for_untracked_files
 	set_remotes
+	set_remote_encoding
 	check_curl_access
 	remote_lock
 	download_remote_updates
@@ -1394,6 +1415,7 @@ action_pull() {
 	check_is_dirty_repository
 	set_current_branch
 	set_remotes
+	set_remote_encoding
 	check_curl_access
 	set_deployed_sha1
 	handle_fetch
@@ -1404,6 +1426,7 @@ action_pull() {
 action_snapshot() {
 	check_lftp_available
 	set_remotes
+	set_remote_encoding
 	check_curl_access
 	init_new_repository
 	download_remote_updates
