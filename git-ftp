@@ -480,6 +480,7 @@ upload_file_buffered() {
 	local SRC_FILE="$1"
 	local DEST_FILE="${SRC_FILE#$SYNCROOT}"
 	local ENC_DEST_FILE="${DEST_FILE//#/%23}"
+	local ENC_DEST_FILE="${ENC_DEST_FILE// /%20}"
 	if [ "$REMOTE_ENCODING" == "WINDOWS" ] ; then
 		echo "-T \"./$SRC_FILE\"" >> "$TMP_CURL_UPLOAD_FILE"
 		echo "url = \"$REMOTE_BASE_URL/${REMOTE_PATH}${ENC_DEST_FILE}\"" | iconv -f UTF-8 -t WINDOWS-1252 >> "$TMP_CURL_UPLOAD_FILE"
